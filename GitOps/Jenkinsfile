@@ -17,7 +17,7 @@ pipeline {
         
         stage('Git: Code Checkout') {
             steps {
-                git url: "https://github.com/atkaridarshan04/MERN-DevOps.git", branch: "main"
+                git url: "https://github.com/atkaridarshan04/.git", branch: "begineer"
             }
         }
         
@@ -68,7 +68,7 @@ pipeline {
                         git commit -m "Updated environment variables"
                         
                         echo "Pushing changes to github: "
-                        git push https://github.com/atkaridarshan04/MERN-DevOps.git main
+                        git push https://github.com/atkaridarshan04/CloudNative-DevOps-Blueprint.git main
                     '''
                     }
                 }

@@ -3,7 +3,7 @@ version: "3.8"
 services:
   frontend:
     container_name: frontend
-    # build: ./frontend
+    build: ./src/frontend
     image: bookstore-frontend
     ports:
       - "5173:5173"
@@ -30,8 +30,8 @@ services:
 
   backend:
     container_name: backend
-    # build: ./backend
-    image: bookstore-backend  
+    build: ./src/backend
+    # image: bookstore-backend  
     ports:
       - "8000:8000"
     env_file:

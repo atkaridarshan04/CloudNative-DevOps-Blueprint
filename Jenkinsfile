@@ -21,7 +21,7 @@ pipeline {
         
         stage('Code Checkout') {
             steps {
-                git url: "https://github.com/atkaridarshan04/MERN-DevOps.git", branch: "main"
+                git url: "https://github.com/atkaridarshan04/CloudNative-DevOps-Blueprint.git", branch: "begineer"
             }
         }
         
