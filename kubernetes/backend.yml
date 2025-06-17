@@ -1,3 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata: 
+  name: backend-config
+  namespace: mern-devops
+data:
+  PORT: "8000"
+  mongoDBURL: "mongodb://admin:password123@mongodb-deployment-0.mongodb-service-headless.mern-devops.svc.cluster.local:27017/db?authSource=admin"       # using headless service name
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -16,13 +26,13 @@ spec:
       labels:
         app: backend
     spec:
-      securityContext:  # Pod-level security context
-        runAsUser: 1000  # A non-root UID
-        runAsGroup: 3000  # Group ID for volume access if needed
-        fsGroup: 2000  # Group ID for volume access if needed
+      securityContext:  
+        runAsUser: 1000  
+        runAsGroup: 3000 
+        fsGroup: 2000 
       containers:
         - name: backend
-          image: atkaridarshan04/bookstore-backend:v2
+          image: atkaridarshan04/bookstore-backend:prod-v1
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
@@ -49,20 +59,20 @@ spec:
               port: 8000
             initialDelaySeconds: 30
             periodSeconds: 15
-          # resources:
-          #   requests:
-          #     memory: "128Mi"
-          #     cpu: "0.25"
-          #   limits:
-          #     memory: "256Mi"
-          #     cpu: "0.25"
-          securityContext:  # Container-level security context
-            runAsUser: 1000  # A non-root UID
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "0.25"
+            limits:
+              memory: "256Mi"
+              cpu: "0.25"
+          securityContext: 
+            runAsUser: 1000
             runAsGroup: 3000
-            allowPrivilegeEscalation: false  # Prevent privilege escalation
+            allowPrivilegeEscalation: false 
             capabilities:
               drop:
-                - ALL  # Drop all capabilities for security
+                - ALL
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -76,11 +86,9 @@ metadata:
   name: backend-service
   namespace: mern-devops
 spec:
-  # type: NodePort
   selector:
     app: backend
   ports:
     - port: 8000
       targetPort: 8000
       protocol: TCP
-      # nodePort: 31100

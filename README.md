@@ -1,59 +1,164 @@
-# MERN DevOps Project
+# Production Deployment to AWS EKS
 
-This project is designed to facilitate the deployment of a MERN (MongoDB, Express, React, Node.js) application by integrating key DevOps tools and best practices. It leverages Docker for containerization, Kubernetes for orchestration, Jenkins for CI/CD automation, Helm for package management, ArgoCD for GitOps-based deployment, Kustomize for environment-specific configurations, and Prometheus/Grafana for monitoring and observability.
+Deploying the MERN stack (MongoDB, Express, React, Node.js) application on AWS EKS (Elastic Kubernetes Service) with Terraform infrastructure as code.
 
----
+## Project Overview
 
-## Overview
+This project demonstrates a production-ready deployment of a web application using modern DevOps practices and cloud-native technologies:
 
-The MERN DevOps project includes:
+- **Infrastructure**: AWS EKS provisioned with Terraform
+- **Container Orchestration**: Kubernetes
+- **Ingress**: NGINX Ingress Controller
+- **SSL/TLS**: cert-manager with Let's Encrypt
+- **Autoscaling**: Horizontal Pod Autoscaler
 
-- **Dockerization**: Building and running containers for the frontend, backend, and MongoDB using Docker and Docker Compose.
+## Prerequisites
 
-- **Kubernetes Deployment**: Deploying the application on a kind Kubernetes cluster and configuring an ingress controller.
+Before you begin, ensure you have the following tools installed:
 
-- **CI/CD Pipeline**: Automating multiple SDLC stages using Jenkins.
+- [AWS CLI](https://aws.amazon.com/cli/) - Configured with appropriate credentials
+- [Terraform](https://www.terraform.io/downloads.html) - v1.0.0 or newer
+- [kubectl](https://kubernetes.io/docs/tasks/tools/) - For interacting with the Kubernetes cluster
+- [Helm](https://helm.sh/docs/intro/install/) - For installing Kubernetes applications
+- [eksctl](https://eksctl.io/installation/) - For additional EKS management
 
-- **Helm Deployment**: Managing Kubernetes deployments using Helm charts for MongoDB, backend, and frontend services.
+## Deployment Guide
 
-- **ArgoCD GitOps**: Continuously deploying and synchronizing the application with the GitHub repository.
+### 1. Set up Terraform Backend (Optional but Recommended)
 
-- **Kustomize**: Managing Kubernetes configurations for different environments without modifying base YAML files.
+Before initializing Terraform, set up a remote backend to store the Terraform state securely:
 
-- **Observability**: Implementing monitoring mechanisms using tools like Prometheus and Grafana to monitor the health and performance of the application.
+**For Linux/macOS:**
+```bash
+# Make the script executable
+chmod +x ./scripts/setup-terraform-backend.sh
 
----
+# Run the script to create S3 bucket and DynamoDB table for state management
+./scripts/setup-terraform-backend.sh
+```
 
-## Project Deployment Flow
+### 2. Infrastructure Provisioning with Terraform
 
-![workflow-gif](./docs/assets/workflow.gif)
+Create the AWS infrastructure using Terraform:
 
----
+```bash
+# Initialize Terraform with the backend configuration
+terraform init
 
-## Documentation
+# Preview the changes
+terraform plan
 
-To understand the various components of this project, refer to the following documentation:
+# Apply the changes
+terraform apply --auto-approve
+```
 
-- **[Docker.md](./docs/Docker.md)**:  
-  Detailed instructions on how to build and run the MERN stack application using Docker, including creating a Docker network, building images, and managing containers.
+### 3. Configure kubectl to use the new EKS cluster
 
-- **[Kubernetes.md](./docs/Kubernetes.md)**:  
-  Detailed instructions on deploying the MERN stack application using Kubernetes, including how to set up persistent storage, deploy services, and access the application.
+```bash
+aws eks --region eu-north-1 update-kubeconfig --name prod-demo-cluster
+```
 
-- **[Jenkins.md](./docs/Jenkins.md)**:  
-  A comprehensive guide on the Jenkins CI/CD pipeline, outlining the various stages, parameters, prerequisites, and tools used to automate the integration and deployment processes.
+### 4. Set up OIDC provider for EKS
 
-- **[Helm.md](./docs/Helm.md)**:  
-  Instructions on how to deploy the MERN stack application using Helm, including installation, chart customization, and deployment of MongoDB, backend, and frontend services.
+```bash
+eksctl utils associate-iam-oidc-provider --region eu-north-1 --cluster prod-demo-cluster --approve
+```
 
-- **[ArgoCD.md](./docs/ArgoCD.md)**:  
-  A step-by-step guide on installing, configuring, and using ArgoCD to deploy the application by connecting ArgoCD to the GitHub repository.
+### 5. Create IAM service account for EBS CSI driver
 
-- **[Kustomize.md](./docs/Kustomize.md)**:  
-  Steps on how to manage multiple environments (Dev, Prod) using Kustomize for Kubernetes configurations.
+```bash
+eksctl create iamserviceaccount \
+  --region=eu-north-1 \
+  --cluster=prod-demo-cluster \
+  --namespace=kube-system \
+  --name=ebs-csi-controller-sa \
+  --attach-policy-arn arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy \
+  --approve \
+  --override-existing-service-accounts
+```
 
-- **[Observability.md](./docs/Observability.md)**:  
-  Instructions on setting up Prometheus for monitoring application metrics and visualizing data with Grafana dashboards.
+### 6. Install EBS CSI driver
 
----
+```bash
+kubectl apply -k "github.com/kubernetes-sigs/aws-ebs-csi-driver/deploy/kubernetes/overlays/stable/ecr/?ref=release-1.11"
+```
 
+### 7. Install NGINX Ingress Controller
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
+```
+
+### 8. Install cert-manager for SSL/TLS certificates
+
+```bash
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.12.0/cert-manager.yaml
+```
+
+### 9. Create namespace for the application
+
+```bash
+kubectl create namespace mern-devops
+```
+
+### 10. Deploy the application
+
+```bash
+kubectl apply -f kubernetes/
+```
+
+### 11. Access the application
+
+```bash
+# Get the Ingress external IP/hostname
+kubectl get ingress -n mern-devops
+```
+
+### 12. Clean up resources when done
+
+```bash
+# Destroy all resources created by Terraform
+terraform destroy --auto-approve
+```
+
+## Configuration
+
+### Terraform Backend
+
+The project uses an S3 bucket with DynamoDB for state locking to store the Terraform state securely. This allows for team collaboration and prevents state corruption. The configuration is in `terraform/backend.tf`.
+
+To customize the backend configuration:
+1. Edit the bucket name and DynamoDB table name in `terraform/backend.tf`
+2. Update the same values in the setup scripts in the `scripts/` directory
+
+### Docker Images
+
+The Kubernetes manifests reference the following Docker images:
+
+- Backend: `atkaridarshan04/bookstore-backend:prod-v1`
+- Frontend: `atkaridarshan04/bookstore-frontend:prod-v1`
+- MongoDB: `mongo:4.4`
+
+## Scaling
+
+The application is configured with Horizontal Pod Autoscalers (HPA) for both frontend and backend services. The HPA will scale the number of pods based on CPU utilization:
+
+- Min replicas: 1
+- Max replicas: 5
+- Target CPU utilization: 70%
+
+## Storage
+
+The application uses AWS EBS volumes for persistent storage with the following configuration:
+
+- Storage Class: `ebs-sc` using the EBS CSI driver
+- Volume Type: gp3
+- File System: ext4
+- Reclaim Policy: Retain
+
+## Networking
+
+The application is exposed through an NGINX Ingress Controller with the following paths:
+
+- `/` - Frontend application
+- `/books` - Backend API

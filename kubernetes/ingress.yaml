@@ -3,9 +3,15 @@ kind: Ingress
 metadata:
   name: nginx-ingress
   namespace: mern-devops
+  # annotations:
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # nginx.ingress.kubernetes.io/rewrite-target: /
+    # nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    # nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
 spec:
   ingressClassName: nginx
   rules:
+    # - host: bookstore.com
     - http:
         paths:
           - path: /
@@ -22,3 +28,7 @@ spec:
                 name: backend-service
                 port:
                   number: 8000
+  # tls:
+  #   - hosts:
+  #       - bookstore.com
+  #     secretName: tls-secret

@@ -1,8 +1,0 @@
-apiVersion: v1
-kind: ConfigMap 
-metadata:
-  name: {{ .Release.Name }}-backend-config
-  namespace: {{ .Values.namespace }}
-data:
-  PORT: "{{ .Values.backend.containerPort }}"
-  mongoDBURL: "mongodb://{{ .Values.mongodb.username }}:{{ .Values.mongodb.password }}@{{ .Release.Name }}-{{ .Values.mongodb.serviceName }}:27017/{{ .Values.mongodb.dbName }}?authSource={{ .Values.mongodb.authSource }}"

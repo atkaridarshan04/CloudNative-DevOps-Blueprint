@@ -1,7 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata: 
-  name: backend-config
-data:
-  PORT: "8000"
-  mongoDBURL: "mongodb://admin:password123@mongodb-service:27017/db?authSource=admin"
