@@ -1,0 +1,69 @@
+namespace: mern-devops
+
+frontend:
+  replicas: 1
+
+  image:
+    repository: atkaridarshan04/bookstore-frontend
+    tag: prod.v2
+
+  containerPort: 80
+
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 15
+
+  readinessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 15
+
+  service:
+    type: ClusterIP
+    port: 80
+
+backend: 
+  replicas: 1
+
+  image:
+    repository: atkaridarshan04/bookstore-backend
+    tag: prod.v1
+
+  containerPort: 8000
+
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 15
+
+  readinessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 15
+
+  service:
+    type: ClusterIP
+    port: 8000
+
+
+persistentVolume:
+  capacity: 1Gi
+  accessMode: ReadWriteOnce
+  reclaimPolicy: Retain
+  storageClassName: manual
+  hostPath: "/mnt/data"
+
+persistentVolumeClaim:
+  accessMode: ReadWriteOnce
+  storage: 1Gi
+  storageClassName: manual
+
+
+mongodb:
+  replicas: 1
+  image: mongo:4.4
+
+  username: admin
+  password: password123
+  dbName: db
+  
+  serviceType: ClusterIP
+  serviceName: mongodb-service  # default service name without release name
+  authSource: admin

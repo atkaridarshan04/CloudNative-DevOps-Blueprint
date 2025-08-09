@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-nginx-stable
+  namespace: {{ .Values.namespace }}
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-frontend-service-stable
+                port:
+                  number: {{ .Values.frontend.containerPort }}
+          - path: /books
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-backend-service-stable
+                port:
+                  number: {{ .Values.backend.containerPort }}

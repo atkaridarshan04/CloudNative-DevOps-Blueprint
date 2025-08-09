@@ -9,7 +9,7 @@ spec:
   project: book-store
   source: 
     repoURL: https://github.com/atkaridarshan04/CloudNative-DevOps-Blueprint.git
-    targetRevision: main
+    targetRevision: prod
     path: helm-chart
     helm:
       valueFiles:
