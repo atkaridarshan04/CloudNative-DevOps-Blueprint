@@ -2,10 +2,13 @@ pipeline {
     agent any
 
     environment {
-        SONAR_HOME = tool "sonar"
-        DOCKER_USERNAME = "atkaridarshan04"
-        GIT_REPO_URL = "https://github.com/atkaridarshan04/CloudNative-DevOps-Blueprint.git"
-        GIT_BRANCH = "prod"
+        SONAR_HOME      = tool "sonar"
+        AWS_REGION      = "us-west-2" 
+        AWS_ACCOUNT_ID  = credentials('aws-account-id') // AWS account ID in Jenkins credentials
+        ECR_REPO_FRONT  = "bookstore-frontend"
+        ECR_REPO_BACK   = "bookstore-backend"
+        GIT_REPO_URL    = "https://github.com/atkaridarshan04/CloudNative-DevOps-Blueprint.git"
+        GIT_BRANCH      = "prod"
     }
 
     parameters {
@@ -67,7 +70,7 @@ pipeline {
                 dir('src/frontend') {
                     sh """
                         echo "Building frontend Docker image..."
-                        docker build -t ${DOCKER_USERNAME}/bookstore-frontend:${params.FRONTEND_DOCKER_TAG} .
+                        docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_FRONT}:${params.FRONTEND_DOCKER_TAG} .
                     """
                 }
                 echo "Frontend image built successfully"
@@ -79,7 +82,7 @@ pipeline {
                 dir('src/backend') {
                     sh """
                         echo "Building backend Docker image..."
-                        docker build -t ${DOCKER_USERNAME}/bookstore-backend:${params.BACKEND_DOCKER_TAG} .
+                        docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_BACK}:${params.BACKEND_DOCKER_TAG} .
                     """
                 }
                 echo "Backend image built successfully"
@@ -90,32 +93,28 @@ pipeline {
             steps {
                 sh """
                     echo "Scanning Docker images for vulnerabilities..."
-                    trivy image --format table ${DOCKER_USERNAME}/bookstore-frontend:${params.FRONTEND_DOCKER_TAG} || true
-                    trivy image --format table ${DOCKER_USERNAME}/bookstore-backend:${params.BACKEND_DOCKER_TAG} || true
+                    trivy image --format table ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_FRONT}:${params.FRONTEND_DOCKER_TAG} || true
+                    trivy image --format table ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_BACK}:${params.BACKEND_DOCKER_TAG} || true
                 """
                 echo "Docker image scanning completed"
             }
         }
 
-        stage('Push Images to DockerHub') {
+        stage('Push Images to ECR') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'docker-hub-token',
-                    passwordVariable: 'DOCKER_PASSWORD',
-                    usernameVariable: 'DOCKER_USER'
-                )]) {
+                withAWS(region: "${AWS_REGION}", credentials: 'aws-access-key') {
                     sh """
-                        echo "Logging into DockerHub..."
-                        docker login -u ${DOCKER_USER} -p ${DOCKER_PASSWORD}
-                        
+                        echo "Logging into AWS ECR..."
+                        aws ecr get-login-password --region ${AWS_REGION} | docker login --username AWS --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+
                         echo "Pushing frontend image..."
-                        docker push ${DOCKER_USERNAME}/bookstore-frontend:${params.FRONTEND_DOCKER_TAG}
-                        
+                        docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_FRONT}:${params.FRONTEND_DOCKER_TAG}
+
                         echo "Pushing backend image..."
-                        docker push ${DOCKER_USERNAME}/bookstore-backend:${params.BACKEND_DOCKER_TAG}
+                        docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_BACK}:${params.BACKEND_DOCKER_TAG}
                     """
                 }
-                echo "Images pushed to DockerHub successfully"
+                echo "Images pushed to AWS ECR successfully"
             }
         }
 
@@ -137,12 +136,14 @@ pipeline {
                 script {
                     dir('helm-chart') {
                         sh """
-                            echo "Updating backend image tag in Helm values..."
-                            sed -i 's|backend:\\s*\\n\\s*image:\\s*\\n\\s*repository: ${DOCKER_USERNAME}/bookstore-backend\\n\\s*tag:.*|backend:\\n  image:\\n    repository: ${DOCKER_USERNAME}/bookstore-backend\\n    tag: ${params.BACKEND_DOCKER_TAG}|' values.yaml
+                            echo "Updating backend image in Helm values..."
+                            yq e -i '.backend.image.repo = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_BACK}"' values.yaml
+                            yq e -i '.backend.image.tag = "${params.BACKEND_DOCKER_TAG}"' values.yaml
 
-                            echo "Updating frontend image tag in Helm values..."
-                            sed -i 's|frontend:\\s*\\n\\s*image:\\s*\\n\\s*repository: ${DOCKER_USERNAME}/bookstore-frontend\\n\\s*tag:.*|frontend:\\n  image:\\n    repository: ${DOCKER_USERNAME}/bookstore-frontend\\n    tag: ${params.FRONTEND_DOCKER_TAG}|' values.yaml
-                    """
+                            echo "Updating frontend image in Helm values..."
+                            yq e -i '.frontend.image.repo = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_FRONT}"' values.yaml
+                            yq e -i '.frontend.image.tag = "${params.FRONTEND_DOCKER_TAG}"' values.yaml
+                        """
                     }
                     echo "Helm values updated successfully"
                 }
@@ -156,7 +157,7 @@ pipeline {
                         git config user.email "jenkins@ci.com"
                         git config user.name "Jenkins GitOps"
 
-                        git add kubernetes/*.yml
+                        git add helm-chart/values.yaml
                         git commit -m "GitOps: Update image tags to frontend:${params.FRONTEND_DOCKER_TAG}, backend:${params.BACKEND_DOCKER_TAG}" || echo "No changes to commit"
 
                         git push ${GIT_REPO_URL} ${GIT_BRANCH}
@@ -167,65 +168,10 @@ pipeline {
         }
     }
 
-    /* --------------------- POST ACTIONS --------------------- */
     post {
         always {
             echo "Pipeline execution completed"
             archiveArtifacts artifacts: '*.html,**/*.xml', allowEmptyArchive: true
-        }
-
-        success {
-            echo "✅ Pipeline completed successfully!"
-            echo "📦 Updated images:"
-            echo "   Frontend: ${DOCKER_USERNAME}/bookstore-frontend:${params.FRONTEND_DOCKER_TAG}"
-            echo "   Backend: ${DOCKER_USERNAME}/bookstore-backend:${params.BACKEND_DOCKER_TAG}"
-
-            script {
-                emailext(
-                    subject: "✅ GitOps Deployment Success - BookStore App",
-                    body: """
-                        <h2>🚀 CI/CD Pipeline Successful</h2>
-                        <p><strong>Project:</strong> ${env.JOB_NAME}</p>
-                        <p><strong>Build:</strong> ${env.BUILD_NUMBER}</p>
-                        <p><strong>Status:</strong> ${currentBuild.result}</p>
-                        
-                        <h3>📦 Updated Images:</h3>
-                        <ul>
-                            <li>Frontend: ${DOCKER_USERNAME}/bookstore-frontend:${params.FRONTEND_DOCKER_TAG}</li>
-                            <li>Backend: ${DOCKER_USERNAME}/bookstore-backend:${params.BACKEND_DOCKER_TAG}</li>
-                        </ul>
-                        
-                        <p><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
-                        <p><em>ArgoCD will automatically sync these changes to the cluster.</em></p>
-                    """,
-                    to: 'atkaridarshan04@gmail.com',
-                    mimeType: 'text/html'
-                )
-            }
-        }
-
-        failure {
-            echo "❌ Pipeline failed!"
-            script {
-                emailext(
-                    subject: "❌ CI/CD Pipeline Failed - BookStore App",
-                    body: """
-                        <h2>🚨 Pipeline Failed</h2>
-                        <p><strong>Project:</strong> ${env.JOB_NAME}</p>
-                        <p><strong>Build:</strong> ${env.BUILD_NUMBER}</p>
-                        <p><strong>Status:</strong> ${currentBuild.result}</p>
-                        
-                        <p><strong>Build URL:</strong> <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
-                        <p>Please check the build logs for details.</p>
-                    """,
-                    to: 'atkaridarshan04@gmail.com',
-                    mimeType: 'text/html'
-                )
-            }
-        }
-
-        unstable {
-            echo "⚠️ Pipeline completed with warnings"
         }
     }
 }

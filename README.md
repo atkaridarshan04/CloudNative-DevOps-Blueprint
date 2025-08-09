@@ -20,6 +20,11 @@
 
 </div>
 
+
+## Architecture
+
+![prod-architecture](./prod-architecture.png)
+
 ---
 
 <div align="center">

@@ -4,8 +4,8 @@ frontend:
   replicas: 1
 
   image:
-    repository: atkaridarshan04/bookstore-frontend
-    tag: prod.v2
+    repository: 590183956795.dkr.ecr.us-west-2.amazonaws.com/bookstore-frontend
+    tag: prod.v1
 
   containerPort: 80
 
@@ -25,7 +25,7 @@ backend:
   replicas: 1
 
   image:
-    repository: atkaridarshan04/bookstore-backend
+    repository: 590183956795.dkr.ecr.us-west-2.amazonaws.com/bookstore-backend
     tag: prod.v1
 
   containerPort: 8000
@@ -44,17 +44,10 @@ backend:
 
 
 persistentVolume:
-  capacity: 1Gi
-  accessMode: ReadWriteOnce
+  provisioner: ebs.csi.aws.com
+  type: gp2
+  fsType: ext4
   reclaimPolicy: Retain
-  storageClassName: manual
-  hostPath: "/mnt/data"
-
-persistentVolumeClaim:
-  accessMode: ReadWriteOnce
-  storage: 1Gi
-  storageClassName: manual
-
 
 mongodb:
   replicas: 1

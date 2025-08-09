@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: {{ .Release.Name }}-mongodb-secret
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Values.namespace | quote }}
 type: Opaque
 data:
   username: {{ .Values.mongodb.username | b64enc }}
@@ -13,7 +13,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ .Release.Name }}-mongodb-service
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Values.namespace | quote }}
 spec:
   type: {{ .Values.mongodb.serviceType }}
   selector:
@@ -28,7 +28,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: {{ .Release.Name }}-mongodb-deployment
-  namespace: {{ .Values.namespace }}
+  namespace: {{ .Values.namespace | quote }}
   labels:
     app: mongodb
 spec:
@@ -37,9 +37,7 @@ spec:
     matchLabels:
       app: mongodb
   updateStrategy:
-    type: RollingUpdate   
-    rollingUpdate:
-      partition: 0
+    type: RollingUpdate
   template:
     metadata:
       name: mongodb
@@ -66,8 +64,35 @@ spec:
               value: {{ .Values.mongodb.dbName }}
           volumeMounts:
             - name: mongodb-vol
-              mountPath: /data/db        
-      volumes:
-        - name: mongodb-vol
-          persistentVolumeClaim:
-            claimName: {{ .Release.Name }}-mongo-pvc
+              mountPath: /data/db
+          livenessProbe:
+            tcpSocket:
+              port: 27017
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - mongo
+                - --eval
+                - db.adminCommand('ping')
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "1Gi"
+              cpu: "1"
+  volumeClaimTemplates:
+    - metadata:
+        name: mongodb-vol
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        resources:
+          requests:
+            storage: 5Gi
+        storageClassName: {{ .Release.Name }}-ebs-sc

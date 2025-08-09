@@ -1,0 +1,10 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ .Release.Name }}-ebs-sc
+provisioner: {{ .Values.persistentVolume.provisioner | default "ebs.csi.aws.com" }}
+parameters:
+  type: {{ .Values.persistentVolume.type | default "gp2" }}
+  fsType: {{ .Values.persistentVolume.fsType | default "ext4" }}
+reclaimPolicy: {{ .Values.persistentVolume.reclaimPolicy | default "Retain" }}
+volumeBindingMode: WaitForFirstConsumer
