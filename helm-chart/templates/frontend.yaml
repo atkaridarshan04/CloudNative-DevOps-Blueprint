@@ -4,7 +4,7 @@ metadata:
   name: {{ .Release.Name }}-frontend-config
   namespace: {{ .Values.namespace }}
 data:
-  VITE_API_BACKEND_URL: {{ .Values.frontend.config.backendUrl }}
+  VITE_API_BACKEND_URL: {{ .Values.frontend.config.backendUrl | quote }}
 
 ---
 apiVersion: v1
