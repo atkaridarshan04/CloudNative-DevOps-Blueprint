@@ -4,10 +4,13 @@ metadata:
   name: book-store
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "1" # 
+    # Enable notifications for specific triggers and specify recipient email addresses
+    notifications.argoproj.io/subscribe.on-health-degraded.email: "atkaridarshan04@gmail.com"
+    notifications.argoproj.io/subscribe.on-deployed.email: "atkaridarshan04@gmail.com, darshan.atkari23@vit.edu"
 spec:
   project: book-store
-  source: 
+  source:
     repoURL: https://github.com/atkaridarshan04/CloudNative-DevOps-Blueprint.git
     targetRevision: main
     path: helm-chart
@@ -23,4 +26,4 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=true 
+      - CreateNamespace=true
